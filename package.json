@@ -21,6 +21,7 @@
   "homepage": "https://github.com/ritazh/facedetect-bot#readme",
   "dependencies": {
     "botbuilder": "^3.4.4",
+    "project-oxford": "^1.5.0",
     "request": "^2.76.0",
     "restify": "^4.2.0"
   }
