@@ -32,7 +32,6 @@ server.get('/', restify.serveStatic({
 
 server.use(restify.queryParser());
 server.use(restify.bodyParser());
-server.use(passport.initialize());
 
 
 //=========================================================
