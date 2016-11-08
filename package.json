@@ -1,0 +1,27 @@
+{
+  "name": "facedetect-bot",
+  "version": "0.1.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ritazh/facedetect-bot.git"
+  },
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "author": "Rita Zhang <ritazh@microsoft.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ritazh/facedetect-bot/issues"
+  },
+  "homepage": "https://github.com/ritazh/facedetect-bot#readme",
+  "dependencies": {
+    "botbuilder": "^3.4.4",
+    "request": "^2.76.0",
+    "restify": "^4.2.0"
+  }
+}
