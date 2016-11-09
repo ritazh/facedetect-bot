@@ -43,6 +43,7 @@ bot.dialog('/', [
     console.log(results.response);
     if (results.response){
       session.userData.faces =[];
+      /// TODO: Process all default users in the database here and add their contact info
       client.face.detect({
         path: './face.jpeg',
         returnFaceId: true,
@@ -51,10 +52,20 @@ bot.dialog('/', [
       }).then(function (response) {
         console.log('The faceid is: ' + response[0].faceId);
         console.log('The gender is: ' + response[0].faceAttributes.gender);
-        session.userData.faces.push(response[0].faceId);
-        var msg = "Default user is " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
-        session.send(msg);
-        session.beginDialog('/findmatch');
+        session.userData.faces.push({faceid: response[0].faceId, contact: 'billgates@microsoft.com'});
+        
+        client.face.detect({
+          path: './face3.jpeg',
+          returnFaceId: true,
+          analyzesAge: true,
+          analyzesGender: true
+        }).then(function (response) {
+          console.log('The faceid is: ' + response[0].faceId);
+          console.log('The gender is: ' + response[0].faceAttributes.gender);
+          session.userData.faces.push({faceid: response[0].faceId, contact: 'ritazh@microsoft.com'});
+  
+          session.beginDialog('/findmatch');
+        });
       });
     }else{
       next();
@@ -70,6 +81,7 @@ bot.dialog('/findmatch', [
     builder.Prompts.attachment(session, "Upload an image and we will find a match for you.");
   },
   (session, results) => {
+    session.sendTyping();
     var fileurl;
     results.response.forEach(function (attachment) {
         //file = attachment;    
@@ -86,32 +98,50 @@ bot.dialog('/findmatch', [
     }).then(function (response) {
         console.log('The faceid is: ' + response[0].faceId);
         console.log('The gender is: ' + response[0].faceAttributes.gender);
-        var userfaceid = response[0].faceId;
-        session.userData.faces.push(userfaceid);
         var msg = "New user is " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
         session.send(msg);
 
-        client.face.verify(session.userData.faces).then(function (response) {
-          console.log(response);
-          console.log(response.isIdentical);
-          console.log(response.confidence);
-          var msg = 'These users have ' + response.confidence * 100 + '% confidence in matching.';
-          if(response.isIdentical){
-            msg = msg + "We've found a match for this user!";
-            session.send(msg);
-            // msg = new builder.Message(session);
-            // results.response.forEach(function (attachment) {
-            //     msg.addAttachment(attachment);    
-            // });
-            // session.send(msg);
-          } else{
-            msg = msg + 'Sorry no match found for this user!';
-            session.send(msg);
-          }
-          session.userData.faces.pop(userfaceid);
-          builder.Prompts.confirm(session, "Would you like to try another user image?");
-        });
+        var userfaceid = response[0].faceId;
+        var facematching = [];
+        facematching.push(userfaceid);
+        var processed = 0;
+        var matchfound = false;
+        var matchcontact;
+        var msg = '';
 
+        console.log(session.userData.faces);
+
+        session.userData.faces.forEach(function(face){
+          console.log(face);
+          facematching.push(face.faceid);
+          client.face.verify(facematching).then(function (response) {
+            console.log(response);
+            console.log(response.isIdentical);
+            console.log(response.confidence);
+            
+            if(response.isIdentical){
+              matchfound = true;
+              matchcontact = face.contact;
+              msg = 'These users have ' + response.confidence * 100 + '% confidence in matching.';
+              msg = msg + " We've found a match for this user!";
+              msg = msg + ' Contact: ' + matchcontact;
+
+            } else{
+              if(!matchfound){
+                msg =' Sorry no match found for this user!';
+              }
+            }
+
+            processed++;
+
+            if(processed == session.userData.faces.length){
+              session.send(msg);
+              builder.Prompts.confirm(session, "Would you like to try another user image?");
+            }
+          });
+          
+          facematching.pop(face);
+        });
     });
   },
   (session, results) => {
