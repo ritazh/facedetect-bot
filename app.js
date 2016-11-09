@@ -27,6 +27,10 @@ server.get('/', restify.serveStatic({
   'default': 'index.html'
 }));
 
+server.get('/image', restify.serveStatic({
+    directory: './'
+}));
+
 var client = new oxford.Client(process.env.MICROSOFT_FACEAPI_KEY);
 server.use(restify.queryParser());
 server.use(restify.bodyParser());
@@ -36,12 +40,26 @@ server.use(restify.bodyParser());
 
 bot.dialog('/', [
   (session) => {
-    session.send('Welcome!')
-    builder.Prompts.confirm(session, "We have some user images in our database. Would you like to upload a user's image see if we can find a match of the same user?");
+    session.send('Welcome!');
+    builder.Prompts.confirm(session, "We have some user images in our database. Would you like to upload an image to find a match?");
   },
   (session, results, next) => {
     console.log(results.response);
     if (results.response){
+      session.send('Existing users in our database:');
+      var msg = new builder.Message(session)
+        .attachments([{
+            contentType: "image/jpeg",
+            contentUrl: "https://ritatextmemebot4771.blob.core.windows.net/faces/face.jpeg"
+      }]);
+      session.send(msg);
+
+      msg = new builder.Message(session)
+          .attachments([{
+              contentType: "image/jpeg",
+              contentUrl: "https://media.licdn.com/mpr/mpr/shrinknp_400_400/p/2/005/024/04b/3944b39.jpg"
+      }]);
+      session.send(msg);
       session.userData.faces =[];
       /// TODO: Process all default users in the database here and add their contact info
       client.face.detect({
@@ -72,6 +90,12 @@ bot.dialog('/', [
     }
   },
   (session) => {
+    var msg = new builder.Message(session)
+        .attachments([{
+            contentType: "image/jpeg",
+            contentUrl: "http://www.theoldrobots.com/images62/Bender-18.JPG"
+        }]);
+    session.send(msg);
     session.endConversation("Goodbye until next time...");
   }
 ]);
@@ -81,7 +105,6 @@ bot.dialog('/findmatch', [
     builder.Prompts.attachment(session, "Upload an image and we will find a match for you.");
   },
   (session, results) => {
-    session.sendTyping();
     var fileurl;
     results.response.forEach(function (attachment) {
         //file = attachment;    
@@ -98,8 +121,8 @@ bot.dialog('/findmatch', [
     }).then(function (response) {
         console.log('The faceid is: ' + response[0].faceId);
         console.log('The gender is: ' + response[0].faceAttributes.gender);
-        var msg = "New user is " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
-        session.send(msg);
+        // var msg = "New user is " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
+        // session.send(msg);
 
         var userfaceid = response[0].faceId;
         var facematching = [];
@@ -122,13 +145,12 @@ bot.dialog('/findmatch', [
             if(response.isIdentical){
               matchfound = true;
               matchcontact = face.contact;
-              msg = 'These users have ' + response.confidence * 100 + '% confidence in matching.';
-              msg = msg + " We've found a match for this user!";
-              msg = msg + ' Contact: ' + matchcontact;
+              msg = "We've found a matching user with " + response.confidence * 100 + '% confidence.';
+              msg = msg + " Here's the contact info: " + matchcontact;
 
             } else{
               if(!matchfound){
-                msg =' Sorry no match found for this user!';
+                msg ='Sorry no match found for this user.';
               }
             }
 
@@ -139,7 +161,7 @@ bot.dialog('/findmatch', [
               builder.Prompts.confirm(session, "Would you like to try another user image?");
             }
           });
-          
+
           facematching.pop(face);
         });
     });
