@@ -27,7 +27,7 @@ server.get('/', restify.serveStatic({
   'default': 'index.html'
 }));
 
-client = new oxford.Client(process.env.MICROSOFT_FACE_KEY);
+var client = new oxford.Client(process.env.MICROSOFT_FACEAPI_KEY);
 //=========================================================
 // Auth Setup
 //=========================================================
@@ -63,7 +63,7 @@ bot.dialog('/', [
         console.log('The faceid is: ' + response[0].faceId);
         console.log('The gender is: ' + response[0].faceAttributes.gender);
         faces.push(response[0].faceId);
-        var msg = "faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
+        var msg = "Default user is " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
         session.send(msg);
 
         client.face.detect({
@@ -75,18 +75,18 @@ bot.dialog('/', [
             console.log('The faceid is: ' + response[0].faceId);
             console.log('The gender is: ' + response[0].faceAttributes.gender);
             faces.push(response[0].faceId);
-            var msg = "faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
+            var msg = "New user is " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
             session.send(msg);
 
             client.face.verify(faces).then(function (response) {
                 console.log(response);
                 console.log(response.isIdentical);
                 console.log(response.confidence);
-                var msg = 'These users have ' + response.confidence + ' percentage of match.';
+                var msg = 'These users have ' + response.confidence * 100 + '% confidence in matching.';
                 if(response.isIdentical){
-                  msg = msg + ' We have found a match for you!';
+                  msg = msg + ' There is no match for this user!';
                 } else{
-                  msg = msg + ' Sorry no match found for you!';
+                  msg = msg + ' Sorry no match found for this user!';
                 }
                 session.endDialog(msg);
               });
