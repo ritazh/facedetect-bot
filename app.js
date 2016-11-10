@@ -44,13 +44,12 @@ bot.dialog('/', [
     builder.Prompts.confirm(session, "We have some user images in our database. Would you like to upload an image to find a match?");
   },
   (session, results, next) => {
-    console.log(results.response);
     if (results.response){
       session.send('Existing users in our database:');
       var msg = new builder.Message(session)
         .attachments([{
             contentType: "image/jpeg",
-            contentUrl: "https://ritatextmemebot4771.blob.core.windows.net/faces/face.jpeg"
+            contentUrl: "https://pbs.twimg.com/profile_images/558109954561679360/j1f9DiJi.jpeg"
       }]);
       session.send(msg);
 
@@ -107,9 +106,6 @@ bot.dialog('/findmatch', [
   (session, results) => {
     var fileurl;
     results.response.forEach(function (attachment) {
-        //file = attachment;    
-        console.log(attachment);
-        console.log(attachment.contentUrl);
         fileurl = attachment.contentUrl;
     });
 
@@ -121,8 +117,6 @@ bot.dialog('/findmatch', [
     }).then(function (response) {
         console.log('The faceid is: ' + response[0].faceId);
         console.log('The gender is: ' + response[0].faceAttributes.gender);
-        // var msg = "New user is " +  response[0].faceAttributes.gender;//new builder.Message(session).ntext("faceid: " +  response[0].faceId + " | gender: " +  response[0].faceAttributes.gender);
-        // session.send(msg);
 
         var userfaceid = response[0].faceId;
         var facematching = [];
