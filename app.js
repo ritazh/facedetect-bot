@@ -3,6 +3,7 @@
 const restify = require('restify');
 const builder = require('botbuilder');
 const oxford = require('project-oxford');
+const fs = require('fs');
     
 
 //=========================================================
@@ -27,13 +28,15 @@ server.get('/', restify.serveStatic({
   'default': 'index.html'
 }));
 
-server.get('/image', restify.serveStatic({
-    directory: './'
-}));
-
 var client = new oxford.Client(process.env.MICROSOFT_FACEAPI_KEY);
 server.use(restify.queryParser());
 server.use(restify.bodyParser());
+
+// Images in our Database
+var faceUrls = [];
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face.jpeg", email: "billgates@microsoft.com"});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", email: "ritazh@microsoft.com"});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com"});
 //=========================================================
 // Bots Dialogs
 //=========================================================
@@ -46,42 +49,30 @@ bot.dialog('/', [
   (session, results, next) => {
     if (results.response){
       session.send('Existing users in our database:');
-      var msg = new builder.Message(session)
+
+      session.userData.faces =[];
+      var processedface = 0;
+      faceUrls.forEach(function(faceUrl){
+        var msg = new builder.Message(session)
         .attachments([{
             contentType: "image/jpeg",
-            contentUrl: "https://pbs.twimg.com/profile_images/558109954561679360/j1f9DiJi.jpeg"
-      }]);
-      session.send(msg);
-
-      msg = new builder.Message(session)
-          .attachments([{
-              contentType: "image/jpeg",
-              contentUrl: "https://media.licdn.com/mpr/mpr/shrinknp_400_400/p/2/005/024/04b/3944b39.jpg"
-      }]);
-      session.send(msg);
-      session.userData.faces =[];
-      /// TODO: Process all default users in the database here and add their contact info
-      client.face.detect({
-        path: './face.jpeg',
-        returnFaceId: true,
-        analyzesAge: true,
-        analyzesGender: true
-      }).then(function (response) {
-        console.log('The faceid is: ' + response[0].faceId);
-        console.log('The gender is: ' + response[0].faceAttributes.gender);
-        session.userData.faces.push({faceid: response[0].faceId, contact: 'billgates@microsoft.com'});
-        
+            contentUrl: faceUrl.url
+        }]);
+        session.send(msg);
         client.face.detect({
-          path: './face3.jpeg',
+          url: faceUrl.url,
           returnFaceId: true,
           analyzesAge: true,
           analyzesGender: true
         }).then(function (response) {
           console.log('The faceid is: ' + response[0].faceId);
           console.log('The gender is: ' + response[0].faceAttributes.gender);
-          session.userData.faces.push({faceid: response[0].faceId, contact: 'ritazh@microsoft.com'});
-  
-          session.beginDialog('/findmatch');
+          session.userData.faces.push({faceid: response[0].faceId, contact: faceUrl.email});
+          processedface++;
+
+          if(processedface == faceUrls.length){
+            session.beginDialog('/findmatch');
+          }
         });
       });
     }else{

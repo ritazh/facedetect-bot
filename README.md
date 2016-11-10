@@ -2,7 +2,7 @@
 
 _A bot that detects users in a picture_.
 
-[Check out the demo site](https://facedtectbot.azurewebsites.net/)
+[Check out the demo site](https://facedetectme.azurewebsites.net/)
 
 ![facedetect Bot Demo](botdemo.gif)
 
