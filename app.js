@@ -4,6 +4,7 @@ const restify = require('restify');
 const builder = require('botbuilder');
 const oxford = require('project-oxford');
 const fs = require('fs');
+const request = require('request');
     
 
 //=========================================================
@@ -51,14 +52,19 @@ bot.dialog('/', [
       session.send('Existing users in our database:');
 
       session.userData.faces =[];
+
       var processedface = 0;
+      var attachments = [];
       faceUrls.forEach(function(faceUrl){
-        var msg = new builder.Message(session)
-        .attachments([{
-            contentType: "image/jpeg",
-            contentUrl: faceUrl.url
-        }]);
-        session.send(msg);
+        var attachment = new builder.HeroCard(session)
+          .title("")
+          .subtitle("")
+          .images([
+              builder.CardImage.create(session, faceUrl.url)
+          ]);
+
+         attachments.push(attachment);
+
         client.face.detect({
           url: faceUrl.url,
           returnFaceId: true,
@@ -71,6 +77,11 @@ bot.dialog('/', [
           processedface++;
 
           if(processedface == faceUrls.length){
+            var msg = new builder.Message(session)
+              .attachmentLayout(builder.AttachmentLayout.carousel)
+              .attachments(attachments);
+
+            session.send(msg);
             session.beginDialog('/findmatch');
           }
         });
@@ -96,60 +107,86 @@ bot.dialog('/findmatch', [
   },
   (session, results) => {
     var fileurl;
+    var filebody;
+
     results.response.forEach(function (attachment) {
         fileurl = attachment.contentUrl;
-    });
-
-    client.face.detect({
-      url: fileurl,
-      returnFaceId: true,
-      analyzesAge: true,
-      analyzesGender: true
-    }).then(function (response) {
-        console.log('The faceid is: ' + response[0].faceId);
-        console.log('The gender is: ' + response[0].faceAttributes.gender);
-
-        var userfaceid = response[0].faceId;
-        var facematching = [];
-        facematching.push(userfaceid);
-        var processed = 0;
-        var matchfound = false;
-        var matchcontact;
-        var msg = '';
-
-        console.log(session.userData.faces);
-
-        session.userData.faces.forEach(function(face){
-          console.log(face);
-          facematching.push(face.faceid);
-          client.face.verify(facematching).then(function (response) {
-            console.log(response);
-            console.log(response.isIdentical);
-            console.log(response.confidence);
-            
-            if(response.isIdentical){
-              matchfound = true;
-              matchcontact = face.contact;
-              msg = "We've found a matching user with " + response.confidence * 100 + '% confidence.';
-              msg = msg + " Here's the contact info: " + matchcontact;
-
-            } else{
-              if(!matchfound){
-                msg ='Sorry no match found for this user.';
+        var headers = {};
+        if(isSkypeAttachment(fileurl)){
+          connector.getAccessToken(
+              function(error, token) {
+                  headers['Authorization'] = 'Bearer ' + token;
+                  headers['Content-Type'] = 'application/octet-stream';
               }
+          );
+        }
+        else{
+            headers['Content-Type'] = attachment.contentType;
+        }
+
+        request(
+            {
+                url: fileurl,
+                method: 'get',
+                encoding: null,
+                headers: headers
+            },
+            function(error, response, body){
+                if(!error && response.statusCode){
+                    client.face.detect({
+                      data: body,
+                      returnFaceId: true,
+                      analyzesAge: true,
+                      analyzesGender: true
+                    }).then(function (response) {
+                        console.log('The faceid is: ' + response[0].faceId);
+                        console.log('The gender is: ' + response[0].faceAttributes.gender);
+
+                        var userfaceid = response[0].faceId;
+                        var facematching = [];
+                        facematching.push(userfaceid);
+                        var processed = 0;
+                        var matchfound = false;
+                        var matchcontact;
+                        var msg = '';
+
+                        console.log(session.userData.faces);
+
+                        session.userData.faces.forEach(function(face){
+                          facematching.push(face.faceid);
+                          client.face.verify(facematching).then(function (response) {
+                            if(response.isIdentical){
+                              matchfound = true;
+                              matchcontact = face.contact;
+                              msg = "We've found a matching user with " + response.confidence * 100 + '% confidence.';
+                              msg = msg + " Here's the contact info: " + matchcontact;
+
+                            } else{
+                              if(!matchfound){
+                                msg ='Sorry no match found for this user.';
+                              }
+                            }
+
+                            processed++;
+
+                            if(processed == session.userData.faces.length){
+                              session.send(msg);
+                              builder.Prompts.confirm(session, "Would you like to try another user image?");
+                            }
+                          });
+
+                          facematching.pop(face);
+                        });
+                    });
+                }
+                else{
+                    console.log(error);
+                    console.log(response.statusCode);
+                }
             }
-
-            processed++;
-
-            if(processed == session.userData.faces.length){
-              session.send(msg);
-              builder.Prompts.confirm(session, "Would you like to try another user image?");
-            }
-          });
-
-          facematching.pop(face);
-        });
+        );
     });
+
   },
   (session, results) => {
     if (results.response){
@@ -160,6 +197,10 @@ bot.dialog('/findmatch', [
   }
 ]);
 
+// check if attachment is skype attachment
+function isSkypeAttachment(url){
+    return url.startsWith("https://apis.skype.com/v2/attachments");
+}
 
 
 
