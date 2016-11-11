@@ -56,35 +56,20 @@ bot.dialog('/', [
       var processedface = 0;
       var attachments = [];
       faceUrls.forEach(function(faceUrl){
-        var attachment = new builder.HeroCard(session)
-          .title("")
-          .subtitle("")
-          .images([
-              builder.CardImage.create(session, faceUrl.url)
-          ]);
+         attachments.push(createAttachment(session, '', '', faceUrl.url));
+         detectFace(faceUrl.url, function(response){
+            session.userData.faces.push({faceid: response[0].faceId, contact: faceUrl.email});
+            processedface++;
 
-         attachments.push(attachment);
+            if(processedface == faceUrls.length){
+              var msg = new builder.Message(session)
+                .attachmentLayout(builder.AttachmentLayout.carousel)
+                .attachments(attachments);
 
-        client.face.detect({
-          url: faceUrl.url,
-          returnFaceId: true,
-          analyzesAge: true,
-          analyzesGender: true
-        }).then(function (response) {
-          console.log('The faceid is: ' + response[0].faceId);
-          console.log('The gender is: ' + response[0].faceAttributes.gender);
-          session.userData.faces.push({faceid: response[0].faceId, contact: faceUrl.email});
-          processedface++;
-
-          if(processedface == faceUrls.length){
-            var msg = new builder.Message(session)
-              .attachmentLayout(builder.AttachmentLayout.carousel)
-              .attachments(attachments);
-
-            session.send(msg);
-            session.beginDialog('/findmatch');
-          }
-        });
+              session.send(msg);
+              session.beginDialog('/findmatch');
+            }
+         });
       });
     }else{
       next();
@@ -106,85 +91,13 @@ bot.dialog('/findmatch', [
     builder.Prompts.attachment(session, "Upload an image and we will find a match for you.");
   },
   (session, results) => {
-    var fileurl;
-    var filebody;
-
     results.response.forEach(function (attachment) {
-        fileurl = attachment.contentUrl;
-        var headers = {};
-        if(isSkypeAttachment(fileurl)){
-          connector.getAccessToken(
-              function(error, token) {
-                  headers['Authorization'] = 'Bearer ' + token;
-                  headers['Content-Type'] = 'application/octet-stream';
-              }
-          );
-        }
-        else{
-            headers['Content-Type'] = attachment.contentType;
-        }
-
-        request(
-            {
-                url: fileurl,
-                method: 'get',
-                encoding: null,
-                headers: headers
-            },
-            function(error, response, body){
-                if(!error && response.statusCode){
-                    client.face.detect({
-                      data: body,
-                      returnFaceId: true,
-                      analyzesAge: true,
-                      analyzesGender: true
-                    }).then(function (response) {
-                        console.log('The faceid is: ' + response[0].faceId);
-                        console.log('The gender is: ' + response[0].faceAttributes.gender);
-
-                        var userfaceid = response[0].faceId;
-                        var facematching = [];
-                        facematching.push(userfaceid);
-                        var processed = 0;
-                        var matchfound = false;
-                        var matchcontact;
-                        var msg = '';
-
-                        console.log(session.userData.faces);
-
-                        session.userData.faces.forEach(function(face){
-                          facematching.push(face.faceid);
-                          client.face.verify(facematching).then(function (response) {
-                            if(response.isIdentical){
-                              matchfound = true;
-                              matchcontact = face.contact;
-                              msg = "We've found a matching user with " + response.confidence * 100 + '% confidence.';
-                              msg = msg + " Here's the contact info: " + matchcontact;
-
-                            } else{
-                              if(!matchfound){
-                                msg ='Sorry no match found for this user.';
-                              }
-                            }
-
-                            processed++;
-
-                            if(processed == session.userData.faces.length){
-                              session.send(msg);
-                              builder.Prompts.confirm(session, "Would you like to try another user image?");
-                            }
-                          });
-
-                          facematching.pop(face);
-                        });
-                    });
-                }
-                else{
-                    console.log(error);
-                    console.log(response.statusCode);
-                }
-            }
-        );
+        getFile(attachment, function(body){
+          findMatch(session, body, function(msg){
+            session.send(msg);
+            builder.Prompts.confirm(session, "Would you like to try another user image?");
+          })
+        });
     });
 
   },
@@ -202,5 +115,104 @@ function isSkypeAttachment(url){
     return url.startsWith("https://apis.skype.com/v2/attachments");
 }
 
+// create new attachment
+function createAttachment(session, title, subtitle, url){
+  var attachment = new builder.HeroCard(session)
+    .title(title)
+    .subtitle(subtitle)
+    .images([
+        builder.CardImage.create(session, url)
+    ]);
+  return attachment;
+}
+
+function detectFace(url, callback){
+  client.face.detect({
+    url: url,
+    returnFaceId: true,
+    analyzesAge: true,
+    analyzesGender: true
+  }).then(function (response) {
+    console.log('The faceid is: ' + response[0].faceId);
+    console.log('The gender is: ' + response[0].faceAttributes.gender);
+    callback(response);
+  });
+}
+
+function getFile(attachment, callback){
+  var fileurl = attachment.contentUrl;
+  var headers = {};
+  if(isSkypeAttachment(fileurl)){
+    connector.getAccessToken(
+        function(error, token) {
+            headers['Authorization'] = 'Bearer ' + token;
+            headers['Content-Type'] = 'application/octet-stream';
+        }
+    );
+  }
+  else{
+      headers['Content-Type'] = attachment.contentType;
+  }
+  request({
+    url: fileurl,
+    method: 'get',
+    encoding: null,
+    headers: headers
+    },
+    function(error, response, body){
+        if(!error && response.statusCode){
+            callback(body);
+        }
+        else{
+            console.log(error);
+            console.log(response.statusCode);
+        }
+    }
+  );
+}
+
+function findMatch(session, body, callback){
+  client.face.detect({
+    data: body,
+    returnFaceId: true,
+    analyzesAge: true,
+    analyzesGender: true
+  }).then(function (response) {
+      console.log('The faceid is: ' + response[0].faceId);
+      console.log('The gender is: ' + response[0].faceAttributes.gender);
+
+      var userfaceid = response[0].faceId;
+      var facematching = [];
+      facematching.push(userfaceid);
+      var processed = 0;
+      var matchfound = false;
+      var matchcontact;
+      var msg = '';
+
+      session.userData.faces.forEach(function(face){
+        facematching.push(face.faceid);
+        client.face.verify(facematching).then(function (response) {
+          if(response.isIdentical){
+            matchfound = true;
+            matchcontact = face.contact;
+            msg = "We've found a matching user with " + response.confidence * 100 + '% confidence.';
+            msg = msg + " Here's the contact info: " + matchcontact;
+
+          } else{
+            if(!matchfound){
+              msg ='Sorry no match found for this user.';
+            }
+          }
+
+          processed++;
+
+          if(processed == session.userData.faces.length){
+            callback(msg);
+          }
+        });
+        facematching.pop(face);
+      });
+  });
+}
 
 
