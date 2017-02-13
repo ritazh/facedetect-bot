@@ -45,13 +45,13 @@ faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/mas
 
 bot.dialog('/', [
   (session) => {
-    session.send('Welcome!');
-    builder.Prompts.confirm(session, "We have some user images in our database. Would you like to upload an image to find a match?");
+    session.send('Welcome! I am FaceDetectBot!');
+    builder.Prompts.confirm(session, "We have some user profile images in our database. Would you like to upload an image to find a match?");
   },
   (session, results, next) => {
     if (results.response){
       session.send('Existing users in our database:');
-
+      session.sendTyping();
       session.userData.faces =[];
 
       var processedface = 0;
@@ -92,6 +92,7 @@ bot.dialog('/findmatch', [
     builder.Prompts.attachment(session, "Upload an image and we will find a match for you.");
   },
   (session, results) => {
+    session.sendTyping();
     results.response.forEach(function (attachment) {
         getFile(attachment, function(body){
           findMatch(session, body, function(msg){
