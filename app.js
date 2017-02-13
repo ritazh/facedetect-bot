@@ -37,6 +37,7 @@ server.use(restify.bodyParser());
 var faceUrls = [];
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face.jpeg", email: "billgates@microsoft.com"});
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", email: "ritazh@microsoft.com"});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face7.jpeg", email: "bhnook@microsoft.com"});
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com"});
 //=========================================================
 // Bots Dialogs
