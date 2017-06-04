@@ -53,6 +53,7 @@ bot.dialog('/', [
       session.send('Existing users in our database:');
       session.sendTyping();
       session.userData.faces =[];
+      session.userData.faceids = [];
 
       var processedface = 0;
       var attachments = [];
@@ -60,6 +61,7 @@ bot.dialog('/', [
          attachments.push(createAttachment(session, '', '', faceUrl.url));
          detectFace(faceUrl.url, function(response){
             session.userData.faces.push({faceid: response[0].faceId, contact: faceUrl.email});
+            session.userData.faceids.push(response[0].faceId);
             processedface++;
 
             if(processedface == faceUrls.length){
@@ -190,29 +192,29 @@ function findMatch(session, body, callback){
       var matchfound = false;
       var matchcontact;
       var msg = '';
-
-      session.userData.faces.forEach(function(face){
-        facematching.push(face.faceid);
-        client.face.verify(facematching).then(function (response) {
-          if(response.isIdentical){
-            matchfound = true;
-            matchcontact = face.contact;
-            msg = "We've found a matching user with " + response.confidence * 100 + '% confidence.';
-            msg = msg + " Here's the contact info: " + matchcontact;
-
-          } else{
-            if(!matchfound){
-              msg ='Sorry no match found for this user.';
-            }
-          }
-
-          processed++;
-
-          if(processed == session.userData.faces.length){
+       
+      console.log('find similar...')
+      console.log(session.userData.faceids)
+      client.face.similar(userfaceid, {
+        candidateFaces:session.userData.faceids
+      }).then(function(response) {
+          console.log(response);
+          if(response.length > 0){
+            session.userData.faces.find(function (face){
+              if (face.faceid == response[0].faceId){
+                console.log('found')
+                matchcontact = face.contact;
+                msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
+                msg = msg + " Here's the contact info: " + matchcontact;
+                console.log(msg);
+                callback(msg);
+              }
+            })
+          }else{
+            msg = 'Sorry no match found for this user.';
+            console.log(msg);
             callback(msg);
           }
-        });
-        facematching.pop(face);
       });
   });
 }
