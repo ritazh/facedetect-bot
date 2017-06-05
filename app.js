@@ -58,23 +58,13 @@ bot.dialog('/', [
       session.userData.faceids = [];
       getFaceList();
 
-      console.log(faceUrls);
+      //console.log(faceUrls);
 
-      var processedface = 0;
-      var attachments = [];
-      faceUrls.forEach(function(faceUrl){
-        attachments.push(createAttachment(session, '', '', faceUrl.url));
-        processedface++;
-
-        if(processedface == faceUrls.length){
-          var msg = new builder.Message(session)
-            .attachmentLayout(builder.AttachmentLayout.carousel)
-            .attachments(attachments);
-
-          session.send(msg);
-          session.beginDialog('/findmatch');
-        }
+      displayFaces(session, function(msg){
+        session.send(msg);
+        session.beginDialog('/findmatch');
       });
+
     }else{
       next();
     }
@@ -96,15 +86,15 @@ bot.dialog('/findmatch', [
   },
   (session, results) => {
     session.sendTyping();
+    console.log(results);
     results.response.forEach(function (attachment) {
-        getFile(attachment, function(body){
-          findMatch(session, body, function(msg){
+        getFile(attachment, function(body, fileurl){
+          findMatch(session, body, function(msg, userfaceid, found){
             session.send(msg);
             builder.Prompts.confirm(session, "Would you like to try another user image?");
           })
         });
     });
-
   },
   (session, results) => {
     if (results.response){
@@ -115,6 +105,85 @@ bot.dialog('/findmatch', [
   }
 ]);
 
+bot.dialog('/adduser', [
+  (session) => {
+    session.userData.newUserImageUrl = null;
+    builder.Prompts.attachment(session, "Please upload an image of a user");
+  },
+  (session, results, next) => {
+    session.sendTyping();
+    results.response.forEach(function (attachment) {
+        getFile(attachment, function(body, fileurl){
+          findMatch(session, body, function(msg, userfaceid, found){
+            
+            if(found){
+              var msg = "Seems this user already exist.";
+              console.log(msg);
+              session.send(msg);
+            }else
+            {
+              session.userData.newUserImageUrl = fileurl;
+              session.userData.newUserFaceId = userfaceid;
+
+              session.beginDialog('/addemail');
+            }
+            displayFaces(session,function(msg){
+              session.send(msg);
+              builder.Prompts.confirm(session, "Would you like to add another user?");
+            });
+          })
+        });
+    });
+
+  },
+  (session, results) => {
+    if (results.response){
+      session.replaceDialog('/adduser');
+    }else{
+      session.endDialog();
+    }
+  }
+]);
+
+bot.dialog('/addemail', [
+  (session) => {
+    builder.Prompts.text(session, "Please enter the user's email");
+  },
+  (session, results, next) => {
+    if (results.response){
+      var email = results.response;
+      faceUrls.push({url: session.userData.newUserImageUrl, email: email, faceid: session.userData.newUserFaceId});
+      console.log("Added new user:" + email);
+      session.userData.newUserFaceId = null;
+      session.userData.newUserImageUrl = null;
+      next();
+    }else{
+      session.send("You have entered an invalid email.");
+      session.replaceDialog('/addemail');
+    }
+  },
+  (session, results) => {
+    session.endDialog();
+  }
+]);
+
+function displayFaces(session, callback){
+  session.send('displayFaces');
+  var processedface = 0;
+  var attachments = [];
+  faceUrls.forEach(function(faceUrl){
+    attachments.push(createAttachment(session, '', '', faceUrl.url));
+    processedface++;
+
+    if(processedface == faceUrls.length){
+      var msg = new builder.Message(session)
+        .attachmentLayout(builder.AttachmentLayout.carousel)
+        .attachments(attachments);
+
+      callback(msg);
+    }
+  });
+}
 // get facelist
 function getFaceList(){
   console.log('getFaceList');
@@ -211,7 +280,7 @@ function getFile(attachment, callback){
     },
     function(error, response, body){
         if(!error && response.statusCode){
-            callback(body);
+            callback(body, fileurl);
         }
         else{
             console.log(error);
@@ -244,20 +313,26 @@ function findMatch(session, body, callback){
         candidateFaceListId: faceListId
       }).then(function(response) {
           console.log(response);
+          console.log(faceUrls);
           if(response.length > 0){
-            faceUrls.find(function (faceUrl){
+            var foundFace = faceUrls.find(function (faceUrl){
               if (faceUrl.faceid === response[0].persistedFaceId){
                 console.log('found')
                 msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
                 msg = msg + " Here's the contact info: " + faceUrl.email;
                 console.log(msg);
-                callback(msg);
+                callback(msg, userfaceid, true);
               }
-            })
+            });
+            if(!foundFace){
+              msg = 'Undefined. Sorry no match found for this user.';
+              console.log(msg);
+              callback(msg, userfaceid, false);
+            }
           }else{
             msg = 'Sorry no match found for this user.';
             console.log(msg);
-            callback(msg);
+            callback(msg, userfaceid, false);
           }
       });
   });
