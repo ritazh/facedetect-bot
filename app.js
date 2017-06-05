@@ -35,10 +35,10 @@ server.use(restify.bodyParser());
 
 // Images in our Database
 var faceUrls = [];
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face.jpeg", email: "billgates@microsoft.com"});
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", email: "ritazh@microsoft.com"});
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face7.jpeg", email: "bhnook@microsoft.com"});
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com"});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face.jpeg", email: "billgates@microsoft.com", faceid: ""});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", email: "ritazh@microsoft.com", faceid: ""});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face7.jpeg", email: "bhnook@microsoft.com", faceid: ""});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com", faceid: ""});
 
 var faceListId = 'facedetectbot';//uuid.v4()
 //=========================================================
@@ -48,7 +48,6 @@ var faceListId = 'facedetectbot';//uuid.v4()
 bot.dialog('/', [
   (session) => {
     session.send('Welcome! I am FaceDetectBot!');
-    getFaceList();
     builder.Prompts.confirm(session, "We have some user profile images in our database. Would you like to upload an image to find a match?");
   },
   (session, results, next) => {
@@ -57,25 +56,24 @@ bot.dialog('/', [
       session.sendTyping();
       session.userData.faces =[];
       session.userData.faceids = [];
+      getFaceList();
+      
+      console.log(faceUrls);
 
       var processedface = 0;
       var attachments = [];
       faceUrls.forEach(function(faceUrl){
-         attachments.push(createAttachment(session, '', '', faceUrl.url));
-         detectFace(faceUrl.url, function(response){
-            session.userData.faces.push({faceid: response[0].faceId, contact: faceUrl.email});
-            session.userData.faceids.push(response[0].faceId);
-            processedface++;
+        attachments.push(createAttachment(session, '', '', faceUrl.url));
+        processedface++;
 
-            if(processedface == faceUrls.length){
-              var msg = new builder.Message(session)
-                .attachmentLayout(builder.AttachmentLayout.carousel)
-                .attachments(attachments);
+        if(processedface == faceUrls.length){
+          var msg = new builder.Message(session)
+            .attachmentLayout(builder.AttachmentLayout.carousel)
+            .attachments(attachments);
 
-              session.send(msg);
-              session.beginDialog('/findmatch');
-            }
-         });
+          session.send(msg);
+          session.beginDialog('/findmatch');
+        }
       });
     }else{
       next();
@@ -139,14 +137,28 @@ function getFaceList(){
   
 }
 function createFaceList(){
-  client.face.faceList.create('facedetectbot', {
-    name: 'facedetectbot' 
+  client.face.faceList.create(faceListId, {
+    name: faceListId 
   }).then(function (response) {
     console.log('facelist created successfully');
-    //add faces
+    faceUrls.forEach(function(faceUrl){
+      addFaceToList(faceUrl);
+    });
   }).catch(function (error) {
       console.log(JSON.stringify(error));
   });
+}
+function addFaceToList(faceUrl){
+  client.face.faceList.addFace(faceListId, {
+      url: faceUrl.url,
+      name: faceUrl.email})
+  .then(function (response) {
+      faceUrl.faceid = response.persistedFaceId;
+      console.log('Face added to list: ' + response.persistedFaceId);
+  })
+  .catch(function (error) {
+      console.log(JSON.stringify(error));
+  })
 }
 // check if attachment is skype attachment
 function isSkypeAttachment(url){
@@ -228,16 +240,15 @@ function findMatch(session, body, callback){
       var msg = '';
        
       console.log('find similar...')
-      console.log(session.userData.faceids)
       client.face.similar(userfaceid, {
-        candidateFaces:session.userData.faceids
+        candidateFaceListId: faceListId
       }).then(function(response) {
           console.log(response);
           if(response.length > 0){
-            session.userData.faces.find(function (face){
-              if (face.faceid == response[0].faceId){
+            faceUrls.find(function (faceUrl){
+              if (faceUrl.faceid == response[0].faceId){
                 console.log('found')
-                matchcontact = face.contact;
+                matchcontact = faceUrl.email;
                 msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
                 msg = msg + " Here's the contact info: " + matchcontact;
                 console.log(msg);
