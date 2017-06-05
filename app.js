@@ -47,24 +47,20 @@ var faceListId = 'facedetectbot';//uuid.v4()
 
 bot.dialog('/', [
   (session) => {
-    session.send('Welcome! I am FaceDetectBot!');
-    builder.Prompts.confirm(session, "We have some user profile images in our database. Would you like to upload an image to find a match?");
+    session.send('Welcome! I am Face Detection Bot! Upload a user picture and I will find a match for you.');
+    session.send('Here are some users in our database:');
+    session.userData.faces =[];
+    session.userData.faceids = [];
+    getFaceList();
+
+    displayFaces(session, function(msg){
+      session.send(msg);
+    });
+    builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
   },
   (session, results, next) => {
     if (results.response){
-      session.send('Existing users in our database:');
-      session.sendTyping();
-      session.userData.faces =[];
-      session.userData.faceids = [];
-      getFaceList();
-
-      //console.log(faceUrls);
-
-      displayFaces(session, function(msg){
-        session.send(msg);
-        session.beginDialog('/findmatch');
-      });
-
+      session.beginDialog('/findmatch');
     }else{
       next();
     }
@@ -82,17 +78,26 @@ bot.dialog('/', [
 
 bot.dialog('/findmatch', [
   (session) => {
-    builder.Prompts.attachment(session, "Upload an image and we will find a match for you.");
+    builder.Prompts.attachment(session, "Please upload a user picture.");
   },
   (session, results) => {
     session.sendTyping();
     console.log(results);
+    session.userData.newUserImageUrl = null;
+    session.userData.newUserFaceId = null;
+
     results.response.forEach(function (attachment) {
         getFile(attachment, function(body, fileurl){
           findMatch(session, body, function(msg, userfaceid, found){
             session.send(msg);
-            builder.Prompts.confirm(session, "Would you like to try another user image?");
-          })
+            if (!found){
+              session.userData.newUserImageUrl = fileurl;
+              session.userData.newUserFaceId = userfaceid;
+
+              session.beginDialog('/adduser');
+            }
+            builder.Prompts.confirm(session, "Would you like to try another picture?");
+          });
         });
     });
   },
@@ -107,41 +112,17 @@ bot.dialog('/findmatch', [
 
 bot.dialog('/adduser', [
   (session) => {
-    session.userData.newUserImageUrl = null;
-    builder.Prompts.attachment(session, "Please upload an image of a user");
+    builder.Prompts.confirm(session, "Would you like to add this user?");
   },
   (session, results, next) => {
-    session.sendTyping();
-    results.response.forEach(function (attachment) {
-        getFile(attachment, function(body, fileurl){
-          findMatch(session, body, function(msg, userfaceid, found){
-            
-            if(found){
-              var msg = "Seems this user already exist.";
-              console.log(msg);
-              session.send(msg);
-            }else
-            {
-              session.userData.newUserImageUrl = fileurl;
-              session.userData.newUserFaceId = userfaceid;
-
-              session.beginDialog('/addemail');
-            }
-            displayFaces(session,function(msg){
-              session.send(msg);
-              builder.Prompts.confirm(session, "Would you like to add another user?");
-            });
-          })
-        });
-    });
-
+    if (results.response){
+      session.beginDialog('/addemail');
+    }else{
+      next();
+    }
   },
   (session, results) => {
-    if (results.response){
-      session.replaceDialog('/adduser');
-    }else{
-      session.endDialog();
-    }
+    session.endDialog();
   }
 ]);
 
@@ -156,7 +137,11 @@ bot.dialog('/addemail', [
       console.log("Added new user:" + email);
       session.userData.newUserFaceId = null;
       session.userData.newUserImageUrl = null;
-      next();
+      displayFaces(session,function(msg){
+        session.send(msg);
+        next();
+      });
+
     }else{
       session.send("You have entered an invalid email.");
       session.replaceDialog('/addemail');
@@ -168,7 +153,6 @@ bot.dialog('/addemail', [
 ]);
 
 function displayFaces(session, callback){
-  session.send('displayFaces');
   var processedface = 0;
   var attachments = [];
   faceUrls.forEach(function(faceUrl){
@@ -315,7 +299,7 @@ function findMatch(session, body, callback){
           console.log(response);
           console.log(faceUrls);
           if(response.length > 0){
-            var foundFace = faceUrls.find(function (faceUrl){
+            faceUrls.find(function (faceUrl){
               if (faceUrl.faceid === response[0].persistedFaceId){
                 console.log('found')
                 msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
@@ -324,11 +308,6 @@ function findMatch(session, body, callback){
                 callback(msg, userfaceid, true);
               }
             });
-            if(!foundFace){
-              msg = 'Undefined. Sorry no match found for this user.';
-              console.log(msg);
-              callback(msg, userfaceid, false);
-            }
           }else{
             msg = 'Sorry no match found for this user.';
             console.log(msg);
