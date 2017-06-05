@@ -5,8 +5,8 @@ const builder = require('botbuilder');
 const oxford = require('project-oxford');
 const fs = require('fs');
 const request = require('request');
+//const uuid    = require('uuid')
     
-
 //=========================================================
 // Bot Setup
 //=========================================================
@@ -39,6 +39,8 @@ faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/mas
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", email: "ritazh@microsoft.com"});
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face7.jpeg", email: "bhnook@microsoft.com"});
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com"});
+
+var faceListId = 'facedetectbot';//uuid.v4()
 //=========================================================
 // Bots Dialogs
 //=========================================================
@@ -46,6 +48,7 @@ faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/mas
 bot.dialog('/', [
   (session) => {
     session.send('Welcome! I am FaceDetectBot!');
+    getFaceList();
     builder.Prompts.confirm(session, "We have some user profile images in our database. Would you like to upload an image to find a match?");
   },
   (session, results, next) => {
@@ -114,6 +117,37 @@ bot.dialog('/findmatch', [
   }
 ]);
 
+// get facelist
+function getFaceList(){
+  console.log('getFaceList');
+  client.face.faceList.get(faceListId).then(function (response) {
+    if(response && response.faceListId === faceListId){
+      console.log('facelist found');
+      console.log(response);
+      //get list and load
+    }else{
+      console.log('facelist not found');
+      createFaceList();
+    }
+  }).catch(function (error) {
+      console.log(JSON.stringify(error));
+      if(error.code === "FaceListNotFound"){
+        console.log('facelist not found, create new');
+        createFaceList();
+      }
+  });;
+  
+}
+function createFaceList(){
+  client.face.faceList.create('facedetectbot', {
+    name: 'facedetectbot' 
+  }).then(function (response) {
+    console.log('facelist created successfully');
+    //add faces
+  }).catch(function (error) {
+      console.log(JSON.stringify(error));
+  });
+}
 // check if attachment is skype attachment
 function isSkypeAttachment(url){
     return url.startsWith("https://apis.skype.com/v2/attachments");
