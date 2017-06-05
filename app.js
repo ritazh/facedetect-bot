@@ -57,7 +57,7 @@ bot.dialog('/', [
       session.userData.faces =[];
       session.userData.faceids = [];
       getFaceList();
-      
+
       console.log(faceUrls);
 
       var processedface = 0;
@@ -122,7 +122,7 @@ function getFaceList(){
     if(response && response.faceListId === faceListId){
       console.log('facelist found');
       console.log(response);
-      //get list and load
+
     }else{
       console.log('facelist not found');
       createFaceList();
@@ -246,11 +246,10 @@ function findMatch(session, body, callback){
           console.log(response);
           if(response.length > 0){
             faceUrls.find(function (faceUrl){
-              if (faceUrl.faceid == response[0].faceId){
+              if (faceUrl.faceid === response[0].persistedFaceId){
                 console.log('found')
-                matchcontact = faceUrl.email;
                 msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
-                msg = msg + " Here's the contact info: " + matchcontact;
+                msg = msg + " Here's the contact info: " + faceUrl.email;
                 console.log(msg);
                 callback(msg);
               }
