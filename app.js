@@ -33,7 +33,7 @@ var client = new oxford.Client(process.env.MICROSOFT_FACEAPI_KEY);
 server.use(restify.queryParser());
 server.use(restify.bodyParser());
 
-// Images in our Database
+// Seed images
 var faceUrls = [];
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face.jpeg", email: "billgates@microsoft.com", faceid: ""});
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", email: "ritazh@microsoft.com", faceid: ""});
@@ -41,6 +41,7 @@ faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/mas
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com", faceid: ""});
 
 var faceListId = 'facedetectbot';//uuid.v4()
+var faceList = null;
 //=========================================================
 // Bots Dialogs
 //=========================================================
@@ -51,12 +52,17 @@ bot.dialog('/', [
     session.send('Here are some users in our database:');
     session.userData.faces =[];
     session.userData.faceids = [];
-    getFaceList();
-
-    displayFaces(session, function(msg){
-      session.send(msg);
+    getFaceList(function(){
+      console.log('callback');
+      if (faceList && faceList.persistedFaces.length > 0){
+        displayFaces(session, function(msg){
+          session.send(msg);
+        });
+        builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
+      }else{
+        builder.Prompts.confirm(session, "Something went wrong. Would you like to try again?");
+      }
     });
-    builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
   },
   (session, results, next) => {
     if (results.response){
@@ -138,8 +144,11 @@ bot.dialog('/addemail', [
   (session, results, next) => {
     if (results.response){
       var email = results.response;
-      faceUrls.push({url: session.userData.newUserImageUrl, email: email, faceid: session.userData.newUserFaceId});
+      var newFaceUrl = {url: session.userData.newUserImageUrl, email: email, faceid: session.userData.newUserFaceId};
+      faceUrls.push(newFaceUrl);//add to cache
+      //addFaceToList(newFaceUrl);//add to facelist
       console.log("Added new user:" + email);
+
       session.userData.newUserFaceId = null;
       session.userData.newUserImageUrl = null;
       displayFaces(session,function(msg){
@@ -158,77 +167,93 @@ bot.dialog('/addemail', [
 ]);
 
 function displayFaces(session, callback){
-  var processedface = 0;
   var attachments = [];
-  faceUrls.forEach(function(faceUrl){
-    attachments.push(createAttachment(session, '', '', faceUrl.url));
-    processedface++;
-
-    if(processedface == faceUrls.length){
-      var msg = new builder.Message(session)
-        .attachmentLayout(builder.AttachmentLayout.carousel)
-        .attachments(attachments);
-
-      callback(msg);
-    }
-  });
+  var msg = "Something went wrong. There are no existing users.";
+  if (faceList.persistedFaces.length > 0){
+    faceList.persistedFaces.forEach(function (persistedFace) {
+      console.log(persistedFace);
+      var userData = JSON.parse(persistedFace.userData);
+      attachments.push(createAttachment(session, '', '', userData.url));
+    });
+    msg = new builder.Message(session)
+          .attachmentLayout(builder.AttachmentLayout.carousel)
+          .attachments(attachments);
+  }
+  callback(msg);
 }
+
 // get facelist
-function getFaceList(){
+function getFaceList(callback){
   console.log('getFaceList');
   client.face.faceList.get(faceListId).then(function (response) {
     if(response && response.faceListId === faceListId){
+      faceList = response;
       console.log('facelist found');
       console.log(response);
-
-      ///This is temporary until we have a persisted storage
-      if (response.persistedFaces.length > 0){
-        loadFacesFromList(response.persistedFaces);
-      }
-
+      callback();
     }else{
       console.log('facelist not found');
-      createFaceList();
+      createFaceList(callback);
     }
   }).catch(function (error) {
       console.log(JSON.stringify(error));
       if(error.code === "FaceListNotFound"){
         console.log('facelist not found, create new');
-        createFaceList();
+        createFaceList(callback);
       }
-  });;
+  });
   
 }
-function createFaceList(){
+function createFaceList(callback){
   client.face.faceList.create(faceListId, {
     name: faceListId 
   }).then(function (response) {
     console.log('facelist created successfully');
+    //Add seed images to faceList
+    var addedImages = 0;
     faceUrls.forEach(function(faceUrl){
-      addFaceToList(faceUrl);
+      addFaceToList(faceUrl, function(){
+        addedImages++;
+
+        if(addedImages == faceUrls.length){
+          console.log('done adding seed images');
+          client.face.faceList.get(faceListId).then(function (response) {
+            if(response && response.faceListId === faceListId){
+              faceList = response;
+              callback();
+            }
+          }).catch(function (error) {
+              console.log(JSON.stringify(error));
+          });
+        }
+      });
     });
-  }).catch(function (error) {
-      console.log(JSON.stringify(error));
+    
   });
 }
-function loadFacesFromList(persistedFaces){
-  console.log("loadFacesFromList");
-  persistedFaces.forEach(function (persistedFace) {
-    faceUrls.find(function (faceUrl){
-      if (faceUrl.email === persistedFace.userData){
-        console.log('set faceid');
-        faceUrl.faceid = persistedFace.persistedFaceId;
-      }
-    });
+
+function getFaceFromList(persistedFaceId){
+  var face = null;
+  faceList.persistedFaces.forEach(function (persistedFace) {
+    if (persistedFace.persistedFaceId === persistedFaceId){
+      var userData = JSON.parse(persistedFace.userData);
+      face = {url: userData.url, email: userData.email, faceid: persistedFace.persistedFaceId};
+      console.log(face);
+    }
   });
+  return face;
 }
-function addFaceToList(faceUrl){
+
+function addFaceToList(faceUrl, callback){
+  var userData = JSON.stringify({email: faceUrl.email, url: faceUrl.url});
+  console.log(userData);
   client.face.faceList.addFace(faceListId, {
       url: faceUrl.url,
-      userData: faceUrl.email})
+      userData: userData})
   .then(function (response) {
       faceUrl.faceid = response.persistedFaceId;
       console.log('Face added to list: ' + response.persistedFaceId);
+      callback();
   })
   .catch(function (error) {
       console.log(JSON.stringify(error));
@@ -306,9 +331,6 @@ function findMatch(session, body, callback){
       console.log('The gender is: ' + response[0].faceAttributes.gender);
 
       var userfaceid = response[0].faceId;
-      var facematching = [];
-      facematching.push(userfaceid);
-      var processed = 0;
       var matchfound = false;
       var matchcontact;
       var msg = '';
@@ -319,16 +341,17 @@ function findMatch(session, body, callback){
       }).then(function(response) {
           console.log(response);
           if(response.length > 0){
-            faceUrls.find(function (faceUrl){
-              if (faceUrl.faceid === response[0].persistedFaceId){
-                console.log('found')
-                msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
-                msg = msg + " Here's the contact info: " + faceUrl.email;
-                console.log(msg);
-                callback(msg, userfaceid, true);
-              }
-            });
-          }else{
+            matchcontact = getFaceFromList(response[0].persistedFaceId);
+            if(matchcontact){
+              matchfound = true;
+              console.log('found')
+              msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
+              msg = msg + " Here's the contact info: " + matchcontact.email;
+              console.log(msg);
+              callback(msg, userfaceid, true);
+            }
+          }
+          if (!matchfound){
             msg = 'Sorry no match found for this user.';
             console.log(msg);
             callback(msg, userfaceid, false);
