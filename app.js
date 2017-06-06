@@ -62,14 +62,19 @@ bot.dialog('/', [
     session.send('Here are some users in our database:');
     session.userData.faces =[];
     session.userData.faceids = [];
-    getFaceList(function(){
+    getFaceList(function(err){
       console.log('callback');
-      if (faceList && faceList.persistedFaces.length > 0){
-        displayFaces(session, function(msg){
-          session.send(msg);
-        });
-        builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
+      if(!err){
+        if (faceList && faceList.persistedFaces.length > 0){
+          displayFaces(session, function(msg){
+            session.send(msg);
+          });
+          builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
+        }else{
+          builder.Prompts.confirm(session, "Something went wrong. Would you like to try again?");
+        }
       }else{
+        session.send("Something went wrong. " + err);
         builder.Prompts.confirm(session, "Something went wrong. Would you like to try again?");
       }
     });
@@ -157,18 +162,33 @@ bot.dialog('/addemail', [
       var email = results.response;
       var newFace = {url: session.userData.newUserImageUrl, email: email, faceid: session.userData.newUserFaceId};
       //add to facelist
-      addFaceToList(newFace, function(){
-        console.log("Added new user:" + email);
-        session.send("New user has been added successfully!");
-        session.userData.newUserFaceId = null;
-        session.userData.newUserImageUrl = null;
-        //refresh list and display latest
-        getFaceList(function(){
-          displayFaces(session,function(msg){
-            session.send(msg);
-            next();
+      addFaceToList(newFace, function(err){
+        if(!err){
+          console.log("Added new user:" + email);
+          session.send("New user has been added successfully!");
+          session.userData.newUserFaceId = null;
+          session.userData.newUserImageUrl = null;
+          //refresh list and display latest
+          getFaceList(function(err){
+            if (!err){
+              displayFaces(session,function(msg){
+                session.send(msg);
+                next();
+              });
+            }else{
+              session.send("Error detected while trying to add this user. " + err);
+              session.userData.newUserFaceId = null;
+              session.userData.newUserImageUrl = null;
+              next();
+            }
           });
-        });
+        }else{
+          session.send("Error detected while trying to add this user. " + err);
+          session.userData.newUserFaceId = null;
+          session.userData.newUserImageUrl = null;
+          next();
+        }
+        
       });
 
     }else{
@@ -205,7 +225,7 @@ function getFaceList(callback){
       faceList = response;
       console.log('facelist found');
       console.log(response);
-      callback();
+      callback(null);
     }else{
       console.log('facelist not found');
       createFaceList(callback);
@@ -227,19 +247,24 @@ function createFaceList(callback){
     //Add seed images to faceList
     var addedImages = 0;
     faceUrls.forEach(function(faceUrl){
-      addFaceToList(faceUrl, function(){
-        addedImages++;
+      addFaceToList(faceUrl, function(err){
+        if(!err){
+          addedImages++;
 
-        if(addedImages == faceUrls.length){
-          console.log('done adding seed images');
-          client.face.faceList.get(faceListId).then(function (response) {
-            if(response && response.faceListId === faceListId){
-              faceList = response;
-              callback();
-            }
-          }).catch(function (error) {
-              console.log(JSON.stringify(error));
-          });
+          if(addedImages == faceUrls.length){
+            console.log('done adding seed images');
+            client.face.faceList.get(faceListId).then(function (response) {
+              if(response && response.faceListId === faceListId){
+                faceList = response;
+                callback(null);
+              }
+            }).catch(function (error) {
+                console.log(JSON.stringify(error));
+                callback(error);
+            });
+          }
+        }else{
+          callback(err);
         }
       });
     });
@@ -268,10 +293,11 @@ function addFaceToList(faceUrl, callback){
   .then(function (response) {
       faceUrl.faceid = response.persistedFaceId;
       console.log('Face added to list: ' + response.persistedFaceId);
-      callback();
+      callback(null);
   })
   .catch(function (error) {
       console.log(JSON.stringify(error));
+      callback(error);
   })
 }
 // check if attachment is skype attachment
@@ -330,7 +356,7 @@ function getFile(attachment, callback){
           var bufferStream = new stream.PassThrough();
           bufferStream.end(body);
           console.log("buffer written to stream");
-          var fileName = new Date().getTime() + '.png';
+          var fileName = new Date().getTime() + '.jpeg';
           blobClient.createAppendBlobFromStream(containerName, fileName, bufferStream, body.length, uploadOptions, function(error, blob){
             if(error){
               console.log(error);
