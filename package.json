@@ -20,9 +20,11 @@
   },
   "homepage": "https://github.com/ritazh/facedetect-bot#readme",
   "dependencies": {
+    "azure-storage": "^2.1.0",
     "botbuilder": "^3.4.4",
     "project-oxford": "^1.5.0",
     "request": "^2.76.0",
-    "restify": "^4.2.0"
+    "restify": "^4.2.0",
+    "stream": "0.0.2"
   }
 }

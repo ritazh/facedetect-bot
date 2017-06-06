@@ -5,8 +5,8 @@ const builder = require('botbuilder');
 const oxford = require('project-oxford');
 const fs = require('fs');
 const request = require('request');
-//const uuid    = require('uuid')
-    
+const azure = require('azure-storage');
+const stream = require('stream');
 //=========================================================
 // Bot Setup
 //=========================================================
@@ -40,8 +40,18 @@ faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/mas
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face7.jpeg", email: "bhnook@microsoft.com", faceid: ""});
 faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com", faceid: ""});
 
-var faceListId = 'facedetectbot';//uuid.v4()
+var faceListId = "facedetectbot";
 var faceList = null;
+
+//storage setup
+var blobClient = azure.createBlobService();
+var containerName = "facedetectbot"
+var hostName = 'https://' + process.env.AZURE_STORAGE_ACCOUNT + '.blob.core.windows.net';
+var uploadOptions = {
+  blockIdPrefix: "block",
+  useTransactionalMD5: true,
+  storeBlobContentMD5: true
+};
 //=========================================================
 // Bots Dialogs
 //=========================================================
@@ -315,7 +325,22 @@ function getFile(attachment, callback){
     },
     function(error, response, body){
         if(!error && response.statusCode){
-            callback(body, fileurl);
+          console.log(response.statusCode);
+          console.log(body.length);
+          var bufferStream = new stream.PassThrough();
+          bufferStream.end(body);
+          console.log("buffer written to stream");
+          var fileName = new Date().getTime() + '.png';
+          blobClient.createAppendBlobFromStream(containerName, fileName, bufferStream, body.length, uploadOptions, function(error, blob){
+            if(error){
+              console.log(error);
+            }else{
+              console.log("blob uploaded");
+              console.log(blob);
+              fileurl = blobClient.getUrl(containerName, fileName, null, hostName);
+              callback(body, fileurl);
+            }
+          });
         }
         else{
             console.log(error);
