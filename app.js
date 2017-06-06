@@ -142,18 +142,19 @@ bot.dialog('/addemail', [
     builder.Prompts.text(session, "Please enter the user's email");
   },
   (session, results, next) => {
+    ///TODO: regex email
     if (results.response){
       var email = results.response;
-      var newFaceUrl = {url: session.userData.newUserImageUrl, email: email, faceid: session.userData.newUserFaceId};
-      faceUrls.push(newFaceUrl);//add to cache
-      //addFaceToList(newFaceUrl);//add to facelist
-      console.log("Added new user:" + email);
-
-      session.userData.newUserFaceId = null;
-      session.userData.newUserImageUrl = null;
-      displayFaces(session,function(msg){
-        session.send(msg);
-        next();
+      var newFace = {url: session.userData.newUserImageUrl, email: email, faceid: session.userData.newUserFaceId};
+      //add to facelist
+      addFaceToList(newFace, function(){
+        console.log("Added new user:" + email);
+        session.userData.newUserFaceId = null;
+        session.userData.newUserImageUrl = null;
+        displayFaces(session,function(msg){
+          session.send(msg);
+          next();
+        });
       });
 
     }else{
