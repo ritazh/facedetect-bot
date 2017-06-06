@@ -80,7 +80,7 @@ bot.dialog('/findmatch', [
   (session) => {
     builder.Prompts.attachment(session, "Please upload a user picture.");
   },
-  (session, results) => {
+  (session, results, next) => {
     session.sendTyping();
     console.log(results);
     session.userData.newUserImageUrl = null;
@@ -95,13 +95,16 @@ bot.dialog('/findmatch', [
               session.userData.newUserFaceId = userfaceid;
 
               session.beginDialog('/adduser');
-              builder.Prompts.confirm(session, "Would you like to try another picture?");
+              
             }else{
-              builder.Prompts.confirm(session, "Would you like to try another picture?");
+              next();
             }
           });
         });
     });
+  },
+  (session, results) => {
+    builder.Prompts.confirm(session, "Would you like to try another picture?");
   },
   (session, results) => {
     if (results.response){
@@ -315,7 +318,6 @@ function findMatch(session, body, callback){
         candidateFaceListId: faceListId
       }).then(function(response) {
           console.log(response);
-          console.log(faceUrls);
           if(response.length > 0){
             faceUrls.find(function (faceUrl){
               if (faceUrl.faceid === response[0].persistedFaceId){
