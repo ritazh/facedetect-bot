@@ -109,19 +109,31 @@ bot.dialog('/findmatch', [
     session.userData.newUserFaceId = null;
 
     results.response.forEach(function (attachment) {
-        getFile(attachment, function(body, fileurl){
-          findMatch(session, body, function(msg, userfaceid, found){
-            session.send(msg);
-            if (!found){
-              session.userData.newUserImageUrl = fileurl;
-              session.userData.newUserFaceId = userfaceid;
+        getFile(attachment, function(error, body){
+          if(!error){
+            findMatch(session, body, function(msg, userfaceid, found){
+              session.send(msg);
 
-              session.beginDialog('/adduser');
-              
-            }else{
-              next();
-            }
-          });
+              if (!found){
+                saveFile(body, function(error, fileurl){
+                  if (!error){
+                    session.userData.newUserImageUrl = fileurl;
+                    session.userData.newUserFaceId = userfaceid;
+
+                    session.beginDialog('/adduser');
+                  }else{
+                    session.send("Error encountered while saving the picture: " + error);
+                    next();
+                  }
+                });
+              }else{
+                next();
+              }
+            });
+          }else{
+            session.send("Error encountered while getting the picture: " + error);
+            next();
+          }
         });
     });
   },
@@ -330,6 +342,23 @@ function detectFace(url, callback){
   });
 }
 
+function saveFile(body, callback){
+  var bufferStream = new stream.PassThrough();
+    bufferStream.end(body);
+    console.log("buffer written to stream");
+    var fileName = new Date().getTime() + '.jpeg';
+    console.log(uploadOptions);
+    blobClient.createAppendBlobFromStream(containerName, fileName, bufferStream, body.length, uploadOptions, function(error, blob){
+      if(error){
+        console.log(error);
+        callback(error, null);
+      }else{
+        var fileurl = blobClient.getUrl(containerName, fileName, null, hostName);
+        callback(null, fileurl);
+      }
+    });
+}
+
 function getFile(attachment, callback){
   var fileurl = attachment.contentUrl;
   var headers = {};
@@ -351,29 +380,7 @@ function getFile(attachment, callback){
     headers: headers
     },
     function(error, response, body){
-        if(!error && response.statusCode){
-          console.log(response.statusCode);
-          console.log(body.length);
-          var bufferStream = new stream.PassThrough();
-          bufferStream.end(body);
-          console.log("buffer written to stream");
-          var fileName = new Date().getTime() + '.jpeg';
-          console.log(uploadOptions);
-          blobClient.createAppendBlobFromStream(containerName, fileName, bufferStream, body.length, uploadOptions, function(error, blob){
-            if(error){
-              console.log(error);
-            }else{
-              console.log("blob uploaded");
-              console.log(blob);
-              fileurl = blobClient.getUrl(containerName, fileName, null, hostName);
-              callback(body, fileurl);
-            }
-          });
-        }
-        else{
-            console.log(error);
-            console.log(response.statusCode);
-        }
+      callback(error, body);
     }
   );
 }
