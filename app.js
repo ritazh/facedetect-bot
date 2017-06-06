@@ -95,8 +95,10 @@ bot.dialog('/findmatch', [
               session.userData.newUserFaceId = userfaceid;
 
               session.beginDialog('/adduser');
+              builder.Prompts.confirm(session, "Would you like to try another picture?");
+            }else{
+              builder.Prompts.confirm(session, "Would you like to try another picture?");
             }
-            builder.Prompts.confirm(session, "Would you like to try another picture?");
           });
         });
     });
@@ -176,6 +178,11 @@ function getFaceList(){
       console.log('facelist found');
       console.log(response);
 
+      ///This is temporary until we have a persisted storage
+      if (response.persistedFaces.length > 0){
+        loadFacesFromList(response.persistedFaces);
+      }
+
     }else{
       console.log('facelist not found');
       createFaceList();
@@ -201,10 +208,21 @@ function createFaceList(){
       console.log(JSON.stringify(error));
   });
 }
+function loadFacesFromList(persistedFaces){
+  console.log("loadFacesFromList");
+  persistedFaces.forEach(function (persistedFace) {
+    faceUrls.find(function (faceUrl){
+      if (faceUrl.email === persistedFace.userData){
+        console.log('set faceid');
+        faceUrl.faceid = persistedFace.persistedFaceId;
+      }
+    });
+  });
+}
 function addFaceToList(faceUrl){
   client.face.faceList.addFace(faceListId, {
       url: faceUrl.url,
-      name: faceUrl.email})
+      userData: faceUrl.email})
   .then(function (response) {
       faceUrl.faceid = response.persistedFaceId;
       console.log('Face added to list: ' + response.persistedFaceId);
