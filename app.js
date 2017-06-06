@@ -50,7 +50,8 @@ var hostName = 'https://' + process.env.AZURE_STORAGE_ACCOUNT + '.blob.core.wind
 var uploadOptions = {
   blockIdPrefix: "block",
   useTransactionalMD5: true,
-  storeBlobContentMD5: true
+  storeBlobContentMD5: true,
+  contentSettings: {contentType: 'image/jpeg'}
 };
 //=========================================================
 // Bots Dialogs
@@ -357,6 +358,7 @@ function getFile(attachment, callback){
           bufferStream.end(body);
           console.log("buffer written to stream");
           var fileName = new Date().getTime() + '.jpeg';
+          console.log(uploadOptions);
           blobClient.createAppendBlobFromStream(containerName, fileName, bufferStream, body.length, uploadOptions, function(error, blob){
             if(error){
               console.log(error);
