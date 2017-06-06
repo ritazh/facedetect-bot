@@ -182,7 +182,7 @@ function displayFaces(session, callback){
     });
     msg = new builder.Message(session)
           .attachmentLayout(builder.AttachmentLayout.carousel)
-          .attachments(attachments);
+          .attachments(attachments.reverse());
   }
   callback(msg);
 }
