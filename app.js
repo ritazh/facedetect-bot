@@ -149,11 +149,15 @@ bot.dialog('/addemail', [
       //add to facelist
       addFaceToList(newFace, function(){
         console.log("Added new user:" + email);
+        session.send("New user has been added successfully!");
         session.userData.newUserFaceId = null;
         session.userData.newUserImageUrl = null;
-        displayFaces(session,function(msg){
-          session.send(msg);
-          next();
+        //refresh list and display latest
+        getFaceList(function(){
+          displayFaces(session,function(msg){
+            session.send(msg);
+            next();
+          });
         });
       });
 
