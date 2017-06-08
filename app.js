@@ -35,10 +35,10 @@ server.use(restify.bodyParser());
 
 // Seed images
 var faceUrls = [];
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face.jpeg", email: "billgates@microsoft.com", faceid: ""});
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", email: "ritazh@microsoft.com", faceid: ""});
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face7.jpeg", email: "bhnook@microsoft.com", faceid: ""});
-faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", email: "sedouard@microsoft.com", faceid: ""});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face.jpeg", contact: "@BillGates", faceid: ""});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face3.jpeg", contact: "@ritazzhang", faceid: ""});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face7.jpeg", contact: "@bhargav", faceid: ""});
+faceUrls.push({url: "https://raw.githubusercontent.com/ritazh/facedetect-bot/master/images/face4.jpeg", contact: "@sedouard", faceid: ""});
 
 var faceListId = "facedetectbot";
 var faceList = null;
@@ -155,7 +155,7 @@ bot.dialog('/adduser', [
   },
   (session, results, next) => {
     if (results.response){
-      session.beginDialog('/addemail');
+      session.beginDialog('/addcontact');
     }else{
       next();
     }
@@ -165,48 +165,52 @@ bot.dialog('/adduser', [
   }
 ]);
 
-bot.dialog('/addemail', [
+bot.dialog('/addcontact', [
   (session) => {
-    builder.Prompts.text(session, "Please enter the user's email");
+    builder.Prompts.text(session, "Please enter the user's twitter handle starting with '@'");
   },
   (session, results, next) => {
-    ///TODO: regex email
+    console.log(results.response);
     if (results.response){
-      var email = results.response;
-      var newFace = {url: session.userData.newUserImageUrl, email: email, faceid: session.userData.newUserFaceId};
-      //add to facelist
-      addFaceToList(newFace, function(err){
-        if(!err){
-          console.log("Added new user:" + email);
-          session.send("New user has been added successfully!");
-          session.userData.newUserFaceId = null;
-          session.userData.newUserImageUrl = null;
-          //refresh list and display latest
-          getFaceList(function(err){
-            if (!err){
-              displayFaces(session,function(msg){
-                session.send(msg);
+      if(validateTwitter(results.response)){
+        var contact = results.response;
+        var newFace = {url: session.userData.newUserImageUrl, contact: contact, faceid: session.userData.newUserFaceId};
+        //add to facelist
+        addFaceToList(newFace, function(err){
+          if(!err){
+            console.log("Added new user:" + contact);
+            session.send("New user has been added successfully!");
+            session.userData.newUserFaceId = null;
+            session.userData.newUserImageUrl = null;
+            //refresh list and display latest
+            getFaceList(function(err){
+              if (!err){
+                displayFaces(session,function(msg){
+                  session.send(msg);
+                  next();
+                });
+              }else{
+                session.send("Error detected while trying to add this user. " + err);
+                session.userData.newUserFaceId = null;
+                session.userData.newUserImageUrl = null;
                 next();
-              });
-            }else{
-              session.send("Error detected while trying to add this user. " + err);
-              session.userData.newUserFaceId = null;
-              session.userData.newUserImageUrl = null;
-              next();
-            }
-          });
-        }else{
-          session.send("Error detected while trying to add this user. " + err);
-          session.userData.newUserFaceId = null;
-          session.userData.newUserImageUrl = null;
-          next();
-        }
-        
-      });
+              }
+            });
+          }else{
+            session.send("Error detected while trying to add this user. " + err);
+            session.userData.newUserFaceId = null;
+            session.userData.newUserImageUrl = null;
+            next();
+          }
+        });
+      }else{
+        session.send("Invalid twitter handle");
+        session.replaceDialog('/addcontact');
+      }
 
     }else{
-      session.send("You have entered an invalid email.");
-      session.replaceDialog('/addemail');
+      //this shouldnt happen
+      session.replaceDialog('/addcontact');
     }
   },
   (session, results) => {
@@ -221,7 +225,7 @@ function displayFaces(session, callback){
     faceList.persistedFaces.forEach(function (persistedFace) {
       console.log(persistedFace);
       var userData = JSON.parse(persistedFace.userData);
-      attachments.push(createAttachment(session, '', '', userData.url));
+      attachments.push(createAttachment(session, userData.contact, '', userData.url));
     });
     msg = new builder.Message(session)
           .attachmentLayout(builder.AttachmentLayout.carousel)
@@ -290,7 +294,7 @@ function getFaceFromList(persistedFaceId){
   faceList.persistedFaces.forEach(function (persistedFace) {
     if (persistedFace.persistedFaceId === persistedFaceId){
       var userData = JSON.parse(persistedFace.userData);
-      face = {url: userData.url, email: userData.email, faceid: persistedFace.persistedFaceId};
+      face = {url: userData.url, contact: userData.contact, faceid: persistedFace.persistedFaceId};
       console.log(face);
     }
   });
@@ -298,7 +302,7 @@ function getFaceFromList(persistedFaceId){
 }
 
 function addFaceToList(faceUrl, callback){
-  var userData = JSON.stringify({email: faceUrl.email, url: faceUrl.url});
+  var userData = JSON.stringify({contact: faceUrl.contact, url: faceUrl.url});
   console.log(userData);
   client.face.faceList.addFace(faceListId, {
       url: faceUrl.url,
@@ -385,6 +389,14 @@ function getFile(attachment, callback){
   );
 }
 
+function validateEmail(email) {
+    var re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return newRegExp(re).test(email);
+}
+function validateTwitter(twitter){
+  var re = /(^|[^@\w])@(\w{1,15})\b/;
+  return re.test(twitter);
+}
 function findMatch(session, body, callback){
   client.face.detect({
     data: body,
@@ -409,9 +421,9 @@ function findMatch(session, body, callback){
             matchcontact = getFaceFromList(response[0].persistedFaceId);
             if(matchcontact){
               matchfound = true;
-              console.log('found')
-              msg = "We've found a matching user with " + response[0].confidence * 100 + '% confidence.';
-              msg = msg + " Here's the contact info: " + matchcontact.email;
+
+              msg = "We've found a matching user with " + Math.floor(response[0].confidence * 100) + '% confidence.';
+              msg = msg + " Here's the contact info: " + matchcontact.contact;
               console.log(msg);
               callback(msg, userfaceid, true);
             }
