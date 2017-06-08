@@ -22,11 +22,7 @@ var connector = new builder.ChatConnector({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD
 });
-var bot = new builder.UniversalBot(connector,function(session){
-  console.log("welcome");
-  session.send("hi");
-  session.beginDialog('/');
-});
+var bot = new builder.UniversalBot(connector);
 
 server.post('/api/messages', connector.listen());
 server.get('/', restify.serveStatic({
@@ -62,19 +58,15 @@ var uploadOptions = {
 // Bots Dialogs
 //=========================================================
 bot.on('conversationUpdate', function (message) {
-  console.log("conversationUpdate");
   if (message.membersAdded) {
     message.membersAdded.forEach(function (identity) {
       if (identity.id === message.address.bot.id) {
-        console.log("bot sending msg");
         bot.beginDialog(message.address, '/');
       }
     });
   }
 });
-bot.on('contactrelationupdate', function (message) {
-  console.log("contactrelationupdate");
-});
+
 bot.dialog('/', [
   (session) => {
     session.send('Welcome! I am Face Detection Bot! Upload a user picture and I will find a match for you.');
@@ -82,7 +74,6 @@ bot.dialog('/', [
     session.userData.faces =[];
     session.userData.faceids = [];
     getFaceList(function(err){
-      console.log('callback');
       if(!err){
         if (faceList && faceList.persistedFaces.length > 0){
           displayFaces(session, function(msg){
@@ -254,21 +245,16 @@ function displayFaces(session, callback){
 
 // get facelist
 function getFaceList(callback){
-  console.log('getFaceList');
   client.face.faceList.get(faceListId).then(function (response) {
     if(response && response.faceListId === faceListId){
       faceList = response;
-      console.log('facelist found');
-      console.log(response);
       callback(null);
     }else{
-      console.log('facelist not found');
       createFaceList(callback);
     }
   }).catch(function (error) {
       console.log(JSON.stringify(error));
       if(error.code === "FaceListNotFound"){
-        console.log('facelist not found, create new');
         createFaceList(callback);
       }
   });
@@ -278,7 +264,6 @@ function createFaceList(callback){
   client.face.faceList.create(faceListId, {
     name: faceListId 
   }).then(function (response) {
-    console.log('facelist created successfully');
     //Add seed images to faceList
     var addedImages = 0;
     faceUrls.forEach(function(faceUrl){
@@ -287,7 +272,6 @@ function createFaceList(callback){
           addedImages++;
 
           if(addedImages == faceUrls.length){
-            console.log('done adding seed images');
             client.face.faceList.get(faceListId).then(function (response) {
               if(response && response.faceListId === faceListId){
                 faceList = response;
@@ -327,7 +311,6 @@ function addFaceToList(faceUrl, callback){
       userData: userData})
   .then(function (response) {
       faceUrl.faceid = response.persistedFaceId;
-      console.log('Face added to list: ' + response.persistedFaceId);
       callback(null);
   })
   .catch(function (error) {
@@ -355,11 +338,10 @@ function detectFace(url, callback){
   client.face.detect({
     url: url,
     returnFaceId: true,
-    analyzesAge: true,
-    analyzesGender: true
+    analyzesAge: false,
+    analyzesGender: false
   }).then(function (response) {
     console.log('The faceid is: ' + response[0].faceId);
-    console.log('The gender is: ' + response[0].faceAttributes.gender);
     callback(response);
   });
 }
@@ -367,9 +349,7 @@ function detectFace(url, callback){
 function saveFile(body, callback){
   var bufferStream = new stream.PassThrough();
     bufferStream.end(body);
-    console.log("buffer written to stream");
     var fileName = new Date().getTime() + '.jpeg';
-    console.log(uploadOptions);
     blobClient.createAppendBlobFromStream(containerName, fileName, bufferStream, body.length, uploadOptions, function(error, blob){
       if(error){
         console.log(error);
@@ -419,22 +399,19 @@ function findMatch(session, body, callback){
   client.face.detect({
     data: body,
     returnFaceId: true,
-    analyzesAge: true,
-    analyzesGender: true
+    analyzesAge: false,
+    analyzesGender: false
   }).then(function (response) {
       console.log('The faceid is: ' + response[0].faceId);
-      console.log('The gender is: ' + response[0].faceAttributes.gender);
 
       var userfaceid = response[0].faceId;
       var matchfound = false;
       var matchcontact;
       var msg = '';
-       
-      console.log('find similar...')
+
       client.face.similar(userfaceid, {
         candidateFaceListId: faceListId
       }).then(function(response) {
-          console.log(response);
           if(response.length > 0){
             matchcontact = getFaceFromList(response[0].persistedFaceId);
             if(matchcontact){
@@ -442,13 +419,12 @@ function findMatch(session, body, callback){
 
               msg = "We've found a matching user with " + Math.floor(response[0].confidence * 100) + '% confidence.';
               msg = msg + " Here's the contact info: " + matchcontact.contact;
-              console.log(msg);
+              
               callback(msg, userfaceid, true);
             }
           }
           if (!matchfound){
             msg = 'Sorry no match found for this user.';
-            console.log(msg);
             callback(msg, userfaceid, false);
           }
       });
