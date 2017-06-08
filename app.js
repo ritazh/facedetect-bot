@@ -22,7 +22,12 @@ var connector = new builder.ChatConnector({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD
 });
-var bot = new builder.UniversalBot(connector);
+var bot = new builder.UniversalBot(connector,function(session){
+  console.log("welcome");
+  session.send("hi");
+  session.beginDialog('/');
+});
+
 server.post('/api/messages', connector.listen());
 server.get('/', restify.serveStatic({
   'directory': __dirname,
@@ -56,7 +61,20 @@ var uploadOptions = {
 //=========================================================
 // Bots Dialogs
 //=========================================================
-
+bot.on('conversationUpdate', function (message) {
+  console.log("conversationUpdate");
+  if (message.membersAdded) {
+    message.membersAdded.forEach(function (identity) {
+      if (identity.id === message.address.bot.id) {
+        console.log("bot sending msg");
+        bot.beginDialog(message.address, '/');
+      }
+    });
+  }
+});
+bot.on('contactrelationupdate', function (message) {
+  console.log("contactrelationupdate");
+});
 bot.dialog('/', [
   (session) => {
     session.send('Welcome! I am Face Detection Bot! Upload a user picture and I will find a match for you.');
