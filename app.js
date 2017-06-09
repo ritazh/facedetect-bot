@@ -76,8 +76,9 @@ bot.dialog('/', [
     getFaceList(function(err){
       if(!err){
         if (faceList && faceList.persistedFaces.length > 0){
-          displayFaces(session);
-          builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
+          displayFaces(session, function(msg){
+            builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
+          });
         }else{
           builder.Prompts.confirm(session, "Something went wrong. Would you like to try again?");
         }
@@ -192,8 +193,9 @@ bot.dialog('/addcontact', [
             //refresh list and display latest
             getFaceList(function(err){
               if (!err){
-                displayFaces(session);
-                next();
+                displayFaces(session, function(msg){
+                  next();
+                });
               }else{
                 session.send("Error detected while trying to add this user. " + err);
                 session.userData.newUserFaceId = null;
@@ -223,9 +225,9 @@ bot.dialog('/addcontact', [
   }
 ]);
 
-function displayFaces(session){
+function displayFaces(session, callback){
   
-  var msg = "Something went wrong. There are no existing users.";
+  var msg = "";
   if (faceList.persistedFaces.length > 0){
     var attachments = [];
     var processed = 0;
@@ -240,6 +242,9 @@ function displayFaces(session){
           .attachments(attachments.reverse());
         session.send(msg);
         attachments = [];
+      }
+      if(processed == faceList.persistedFaces.length){
+        callback(msg);
       }
     });
   }
