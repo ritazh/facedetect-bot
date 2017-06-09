@@ -76,9 +76,7 @@ bot.dialog('/', [
     getFaceList(function(err){
       if(!err){
         if (faceList && faceList.persistedFaces.length > 0){
-          displayFaces(session, function(msg){
-            session.send(msg);
-          });
+          displayFaces(session);
           builder.Prompts.confirm(session, "Would you like to upload a user picture to find a match?");
         }else{
           builder.Prompts.confirm(session, "Something went wrong. Would you like to try again?");
@@ -194,10 +192,8 @@ bot.dialog('/addcontact', [
             //refresh list and display latest
             getFaceList(function(err){
               if (!err){
-                displayFaces(session,function(msg){
-                  session.send(msg);
-                  next();
-                });
+                displayFaces(session);
+                next();
               }else{
                 session.send("Error detected while trying to add this user. " + err);
                 session.userData.newUserFaceId = null;
@@ -227,20 +223,26 @@ bot.dialog('/addcontact', [
   }
 ]);
 
-function displayFaces(session, callback){
-  var attachments = [];
+function displayFaces(session){
+  
   var msg = "Something went wrong. There are no existing users.";
   if (faceList.persistedFaces.length > 0){
+    var attachments = [];
+    var processed = 0;
     faceList.persistedFaces.forEach(function (persistedFace) {
-      console.log(persistedFace);
+      //breaking this into batches as skype only supports up to 10 items in carousel
       var userData = JSON.parse(persistedFace.userData);
       attachments.push(createAttachment(session, userData.contact, '', userData.url));
-    });
-    msg = new builder.Message(session)
+      processed++;
+      if(processed == faceList.persistedFaces.length || attachments.length > 4){
+        msg = new builder.Message(session)
           .attachmentLayout(builder.AttachmentLayout.carousel)
           .attachments(attachments.reverse());
+        session.send(msg);
+        attachments = [];
+      }
+    });
   }
-  callback(msg);
 }
 
 // get facelist
