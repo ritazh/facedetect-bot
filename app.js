@@ -57,15 +57,15 @@ var uploadOptions = {
 //=========================================================
 // Bots Dialogs
 //=========================================================
-bot.on('conversationUpdate', function (message) {
-  if (message.membersAdded) {
-    message.membersAdded.forEach(function (identity) {
-      if (identity.id === message.address.bot.id) {
-        bot.beginDialog(message.address, '/');
-      }
-    });
-  }
-});
+// bot.on('conversationUpdate', function (message) {
+//   if (message.membersAdded) {
+//     message.membersAdded.forEach(function (identity) {
+//       if (identity.id === message.address.bot.id) {
+//         bot.beginDialog(message.address, '/');
+//       }
+//     });
+//   }
+// });
 
 bot.dialog('/', [
   (session) => {
